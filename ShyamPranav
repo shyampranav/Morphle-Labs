@@ -1,0 +1,72 @@
+import os
+import subprocess
+from datetime import datetime
+
+subprocess.run("pip install django", shell=True, check=True)
+
+if not os.path.exists("myproject"):
+    subprocess.run("django-admin startproject myproject", shell=True, check=True)
+
+os.chdir("myproject")
+
+if not os.path.exists("systeminfo"):
+    subprocess.run("python manage.py startapp systeminfo", shell=True, check=True)
+
+settings_path = os.path.join("myproject", "settings.py")
+with open(settings_path, "a") as f:
+    f.write("""
+INSTALLED_APPS += ['systeminfo']
+ALLOWED_HOSTS = ['*']
+""")
+
+views_content = """from django.http import HttpResponse
+import os
+import subprocess
+from datetime import datetime
+
+def htop(request):
+    name = "Your Full Name"
+    username = os.getenv("USER") or os.getenv("USERNAME") or "unknown"
+    server_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S IST")
+    try:
+        top_output = subprocess.getoutput("top -b -n 1")
+    except Exception as e:
+        top_output = f"Error running 'top' command: {str(e)}"
+
+    response = f\"\"\"<pre>
+    Name: {name}
+    Username: {username}
+    Server Time (IST): {server_time}
+    TOP output:
+    {top_output}
+    </pre>\"\"\"
+    return HttpResponse(response)
+"""
+with open("systeminfo/views.py", "w") as f:
+    f.write(views_content)
+
+urls_content = """from django.urls import path
+from .views import htop
+
+urlpatterns = [
+    path('htop/', htop),
+]
+"""
+with open("systeminfo/urls.py", "w") as f:
+    f.write(urls_content)
+
+main_urls_content = """from django.contrib import admin
+from django.urls import path, include
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('', include('systeminfo.urls')),
+]
+"""
+with open(os.path.join("myproject", "urls.py"), "w") as f:
+    f.write(main_urls_content)
+
+subprocess.run("python manage.py migrate", shell=True, check=True)
+
+print("Starting Django Server at http://0.0.0.0:8000/htop/")
+subprocess.run("python manage.py runserver 0.0.0.0:8000", shell=True, check=True)
